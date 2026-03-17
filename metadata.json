@@ -1,0 +1,8 @@
+{
+  "name": "Remix: Remix: Product Studio ver 2.8",
+  "description": "A high-performance virtual workspace for 3D product imagery with physical and flat shading modes.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
