@@ -12,12 +12,17 @@ const __dirname = path.dirname(__filename);
 
 async function startServer() {
   const app = express();
-  const port = 3000;
+  const port = Number(process.env.PORT) || 3000;
 
   app.use(express.json({ limit: '50mb' }));
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
   const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
+
+  // Health Check for Cloud Run
+  app.get('/health', (req, res) => {
+    res.status(200).send('OK');
+  });
 
   // API Routes
   app.post('/api/ai/annotate', async (req, res) => {
