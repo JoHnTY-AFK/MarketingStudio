@@ -235,15 +235,28 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.join(__dirname, 'dist')));
+    // In production, server.js is in dist/
+    // Static files are also in dist/
+    // So if __dirname is dist/, we serve from __dirname
+    const distPath = path.resolve(__dirname);
+    app.use(express.static(distPath));
     app.get('*', (req, res) => {
-      res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+      res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 
   app.listen(port, '0.0.0.0', () => {
-    console.log(`Server running at http://localhost:${port}`);
+    console.log(`Server running at http://0.0.0.0:${port}`);
+    console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
   });
 }
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
 
 startServer();
