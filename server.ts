@@ -17,6 +17,11 @@ async function startServer() {
   app.use(express.json({ limit: '50mb' }));
 
   const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+  if (apiKey) {
+    console.log('GEMINI_API_KEY found (length:', apiKey.length, ')');
+  } else {
+    console.warn('GEMINI_API_KEY NOT FOUND in environment variables');
+  }
   const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
   // Health Check for Cloud Run
@@ -26,7 +31,10 @@ async function startServer() {
 
   // API Routes
   app.post('/api/ai/annotate', async (req, res) => {
-    if (!ai) return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
+    if (!ai) {
+      console.error('API call failed: AI not initialized (missing API key)');
+      return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
+    }
     const { prompt, imageBase64 } = req.body;
     try {
       const base64Data = imageBase64.split(',')[1] || imageBase64;
@@ -43,16 +51,20 @@ async function startServer() {
 
       res.json({ text: response.text });
     } catch (error: any) {
+      console.error('Annotate Error:', error);
       res.status(500).json({ error: error.message });
     }
   });
 
   app.post('/api/ai/refine-brief', async (req, res) => {
-    if (!ai) return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
+    if (!ai) {
+      console.error('API call failed: AI not initialized (missing API key)');
+      return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
+    }
     const { projectDetails } = req.body;
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-3.1-flash-preview',
         contents: `You are a Creative Director for high-end product commercials (think Apple, Nike, Tesla).
         Convert the following product details into a concise, energetic, and creative cinematic brief.
         
@@ -70,16 +82,20 @@ async function startServer() {
       });
       res.json({ text: response.text });
     } catch (error: any) {
+      console.error('Refine Brief Error:', error);
       res.status(500).json({ error: error.message });
     }
   });
 
   app.post('/api/ai/generate-film-plan', async (req, res) => {
-    if (!ai) return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
+    if (!ai) {
+      console.error('API call failed: AI not initialized (missing API key)');
+      return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
+    }
     const { brief, availableFocalPoints, systemInstruction } = req.body;
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-3.1-flash-preview',
         contents: brief,
         config: {
           systemInstruction,
@@ -120,12 +136,16 @@ async function startServer() {
       });
       res.json({ text: response.text });
     } catch (error: any) {
+      console.error('Generate Film Plan Error:', error);
       res.status(500).json({ error: error.message });
     }
   });
 
   app.post('/api/ai/generate-narration', async (req, res) => {
-    if (!ai) return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
+    if (!ai) {
+      console.error('API call failed: AI not initialized (missing API key)');
+      return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
+    }
     const { prompt } = req.body;
     try {
       const response = await ai.models.generateContent({
@@ -143,12 +163,16 @@ async function startServer() {
       const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
       res.json({ base64Audio });
     } catch (error: any) {
+      console.error('Generate Narration Error:', error);
       res.status(500).json({ error: error.message });
     }
   });
 
   app.post('/api/ai/generate-image', async (req, res) => {
-    if (!ai) return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
+    if (!ai) {
+      console.error('API call failed: AI not initialized (missing API key)');
+      return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
+    }
     const { prompt } = req.body;
     try {
       const fullPrompt = `Equirectangular 3D panorama of ${prompt}. Seamless, photorealistic, 360 degree HDRI environment map, perfectly mapped for a sphere.`;
@@ -171,16 +195,20 @@ async function startServer() {
       }
       res.json({ base64Image });
     } catch (error: any) {
+      console.error('Generate Image Error:', error);
       res.status(500).json({ error: error.message });
     }
   });
 
   app.post('/api/ai/parse-director-prompt', async (req, res) => {
-    if (!ai) return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
+    if (!ai) {
+      console.error('API call failed: AI not initialized (missing API key)');
+      return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
+    }
     const { prompt, systemInstruction } = req.body;
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-3.1-flash-preview',
         contents: prompt,
         config: {
           systemInstruction,
@@ -223,6 +251,7 @@ async function startServer() {
       });
       res.json({ text: response.text });
     } catch (error: any) {
+      console.error('Parse Director Prompt Error:', error);
       res.status(500).json({ error: error.message });
     }
   });
