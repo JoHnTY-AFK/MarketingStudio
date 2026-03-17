@@ -38,7 +38,10 @@ export class DirectorAgent {
         body: JSON.stringify({ projectDetails })
       });
 
-      if (!response.ok) throw new Error('Failed to refine brief via server');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`Failed to refine brief via server: ${errorData.error || response.statusText}`);
+      }
       const data = await response.json();
       return data.text || projectDetails;
     } catch (error) {
@@ -78,7 +81,10 @@ ${presetDescriptions}
       body: JSON.stringify({ brief, availableFocalPoints, systemInstruction })
     });
 
-    if (!response.ok) throw new Error('Failed to generate film plan via server');
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(`Failed to generate film plan via server: ${errorData.error || response.statusText}`);
+    }
     const data = await response.json();
     return JSON.parse(data.text || '{}');
   }
@@ -134,7 +140,10 @@ ${presetDescriptions}
       body: JSON.stringify({ prompt, systemInstruction })
     });
 
-    if (!response.ok) throw new Error('Failed to parse director prompt via server');
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(`Failed to parse director prompt via server: ${errorData.error || response.statusText}`);
+    }
     const data = await response.json();
     return JSON.parse(data.text || '{}');
   }

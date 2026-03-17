@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI, Type, Modality } from '@google/genai';
 import dotenv from 'dotenv';
+import fs from 'fs';
 
 dotenv.config();
 
@@ -26,7 +27,13 @@ async function startServer() {
 
   // Health Check for Cloud Run
   app.get('/health', (req, res) => {
-    res.status(200).send('OK');
+    res.status(200).json({ 
+      status: 'OK', 
+      hasApiKey: !!apiKey,
+      apiKeyLength: apiKey?.length || 0,
+      nodeEnv: process.env.NODE_ENV,
+      port: port
+    });
   });
 
   // API Routes
@@ -41,7 +48,7 @@ async function startServer() {
       const cleanPrompt = prompt.replace(/^(annotate|find)\s+/i, '').trim();
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-preview',
+        model: 'gemini-3-flash-preview',
         contents: [
           { inlineData: { data: base64Data, mimeType: 'image/jpeg' } },
           { text: `Find the "${cleanPrompt}" in this image. If it is visible, return its bounding box as a JSON array of 4 numbers [ymin, xmin, ymax, xmax] where each number is between 0 and 1000. For example: [250, 300, 450, 500]. If the feature is NOT clearly visible in the image, return an empty array []. Return ONLY the JSON array, nothing else.` }
@@ -64,8 +71,8 @@ async function startServer() {
     const { projectDetails } = req.body;
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-preview',
-        contents: `You are a Creative Director for high-end product commercials (think Apple, Nike, Tesla).
+        model: 'gemini-3-flash-preview',
+        contents: [{ parts: [{ text: `You are a Creative Director for high-end product commercials (think Apple, Nike, Tesla).
         Convert the following product details into a concise, energetic, and creative cinematic brief.
         
         Product Details: "${projectDetails}"
@@ -77,13 +84,13 @@ async function startServer() {
         4. MANDATORY: Explicitly state that the video must be exactly 15 seconds long.
         5. MANDATORY: Request a dramatic "Reveal" shot to start the film.
         
-        Return ONLY the brief text.`,
+        Return ONLY the brief text.` }] }],
         config: { temperature: 0.7 }
       });
       res.json({ text: response.text });
     } catch (error: any) {
       console.error('Refine Brief Error:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error.message, details: error.toString() });
     }
   });
 
@@ -95,8 +102,8 @@ async function startServer() {
     const { brief, availableFocalPoints, systemInstruction } = req.body;
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-preview',
-        contents: brief,
+        model: 'gemini-3-flash-preview',
+        contents: [{ parts: [{ text: brief }] }],
         config: {
           systemInstruction,
           responseMimeType: 'application/json',
@@ -137,7 +144,7 @@ async function startServer() {
       res.json({ text: response.text });
     } catch (error: any) {
       console.error('Generate Film Plan Error:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error.message, details: error.toString() });
     }
   });
 
@@ -208,8 +215,8 @@ async function startServer() {
     const { prompt, systemInstruction } = req.body;
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-preview',
-        contents: prompt,
+        model: 'gemini-3-flash-preview',
+        contents: [{ parts: [{ text: prompt }] }],
         config: {
           systemInstruction,
           responseMimeType: 'application/json',
@@ -222,26 +229,9 @@ async function startServer() {
                   type: Type.OBJECT,
                   properties: {
                     action: { type: Type.STRING },
-                    params: {
-                      type: Type.OBJECT,
-                      properties: {
-                        northPoleAngle: { type: Type.NUMBER },
-                        targetFeatures: { type: Type.ARRAY, items: { type: Type.STRING } },
-                        stepDistance: { type: Type.NUMBER },
-                        fillRatio: { type: Type.NUMBER },
-                        alignment: { type: Type.STRING },
-                        dispersionMin: { type: Type.NUMBER },
-                        dispersionMax: { type: Type.NUMBER },
-                        lightIndex: { type: Type.NUMBER },
-                        distanceMode: { type: Type.STRING },
-                        verticalOffset: { type: Type.STRING },
-                        horizontalOffset: { type: Type.STRING },
-                        type: { type: Type.STRING },
-                        intensity: { type: Type.NUMBER }
-                      }
-                    }
+                    params: { type: Type.OBJECT }
                   },
-                  required: ["action", "params"]
+                  required: ['action', 'params']
                 }
               }
             },
@@ -252,7 +242,7 @@ async function startServer() {
       res.json({ text: response.text });
     } catch (error: any) {
       console.error('Parse Director Prompt Error:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error.message, details: error.toString() });
     }
   });
 
@@ -264,13 +254,27 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    // In production, server.js is in dist/
-    // Static files are also in dist/
-    // So if __dirname is dist/, we serve from __dirname
-    const distPath = path.resolve(__dirname);
+    const distPath = path.join(process.cwd(), 'dist');
+    console.log(`Production mode: serving static files from ${distPath}`);
+    
+    if (fs.existsSync(distPath)) {
+      console.log(`Contents of ${distPath}:`, fs.readdirSync(distPath));
+      const assetsPath = path.join(distPath, 'assets');
+      if (fs.existsSync(assetsPath)) {
+        console.log(`Contents of ${assetsPath}:`, fs.readdirSync(assetsPath).slice(0, 10), '...');
+      }
+    } else {
+      console.error(`ERROR: Static directory ${distPath} not found!`);
+    }
+
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      const indexPath = path.join(distPath, 'index.html');
+      if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+      } else {
+        res.status(404).send('index.html not found');
+      }
     });
   }
 
